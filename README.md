@@ -1,1 +1,0 @@
-# awsconnect-cicd-pipeline-demo
