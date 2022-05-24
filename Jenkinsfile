@@ -1,204 +1,210 @@
 import groovy.json.JsonSlurper;
-import groovy.json.JsonSlurperClassic ;
-import groovy.json.JsonOutput;
-import groovy.json.*
-import java.util.zip.*;
-import java.util.Random;
-import groovy.json.JsonBuilder
-import groovy.io.FileType
-import net.sf.json.groovy.JsonSlurper;
-
+import groovy.json.JsonOutput; 
 
 def CONFIGDETAILS 
-String MISSINGQC = ""
+String MISSINGLIST = ""
 def INSTANCEARN = ""
 def TRAGETINSTANCEARN = ""
-String PRIMARYQC = ""
-String TARGETQC = ""
-String PRIMARYQUEUES = ""
-String TARGETQUEUES = ""
-String PRIMARYCFS = ""
-String TARGETCFS = ""
-String PRIMARYHOP = ""
-String TARGETHOP = ""
+String PRIMARYUSERS = ""
+String TARGETUSERS = ""
+String PRIMARYRPS = ""
+String TARGETRPS = ""
+String PRIMARYSECPROS = ""
+String TARGETSECPROS = ""
+String PRIMARYHRCHY = ""
+String TARGETHRCHY = ""
+String userName = ""
+String pwd = ""
+String firstName = ""
+String lastName = ""
+String email = ""
+String idInfo = ""
+String phoneType =""
+String autoAccept = ""
+String acw = ""
+String dpn = ""
+String pc =  ""
+String rpId = ""
+String spIds = ""
+String hid = ""
 
-String qcName=""
-String hopId=""
-String maxContacts=""
-String quickConnectConfig=""
-String outBoundConfig=""
-String hopName=""
-String hopDescription=""
-String hopTimeZone=""
-String hopConfig=""
-String fConfig=""
 
 pipeline {
     agent any
-    
     parameters {
-        string(name:'STAGES',defaultValue:'',description:'Build Source')
-        string(name:'SREGIONS',defaultValue:'',description:'Build Source')
-        string(name:'TREGIONS',defaultValue:'',description:'Build Source')
-        string(name:'TRAGET_INSTANCE',defaultValue:'',description:'Build Source')
+        string(name: 'TRAGET_INSTANCE',defaultValue:'',description:'AWS TARGET ID')
     }
-    
     stages {
         stage('git repo & clean') {
             steps {
                 script{
                    try{
-                      sh(script: "rm -r hours-syncronization-main", returnStdout: true)    
+                      sh(script: "rm -r user-syncronization-main", returnStdout: true)    
                    }catch (Exception e) {
                        echo 'Exception occurred: ' + e.toString()
                    }                   
-                   sh(script: "git clone https://github.com/rambusnis/hours-syncronization-main.git", returnStdout: true)
+                   sh(script: "git clone https://github.com/rambusnis/user-syncronization-main.git", returnStdout: true)
                    sh(script: "ls -ltr", returnStatus: true)
                    CONFIGDETAILS = sh(script: 'cat parameters.json', returnStdout: true).trim()
                    def config = jsonParse(CONFIGDETAILS)
-                   INSTANCEARN = "49782017-80ae-4b24-ab1d-ab2ec88a86d9"
+                   INSTANCEARN = config.primaryInstance
+                   //TRAGETINSTANCEARN = config.targetInstance
                    TRAGETINSTANCEARN = params.TRAGET_INSTANCE
-                   //TRAGETINSTANCEARN = "9edd958a-a59f-4ec4-956b-5cf28a132ab1" 
-                   //hopConfig = config.confighop
-                   //config.primaryInstance
-                   //TRAGETINSTANCEARN = config.targetInstance                   
                 }
             }
         }
         
-        stage('List all Resources ') {
+        stage('List all Resources SOURCE ') {
             steps {
                 echo "List all Resources in both instance "
                 withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'eu-west-2') {
                     script {
-                        PRIMARYHOP = sh(script: "aws connect list-hours-of-operations --instance-id ${INSTANCEARN}", returnStdout: true).trim()
-                        echo PRIMARYHOP
-                    }
-                }
-            }
-        }
-
-        stage('List all Resources TARGET') {
-            steps {
-                echo "List all Resources in both instance "
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {
-                    script {
-                        TARGETHOP = sh(script: "aws connect list-hours-of-operations --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
-                        echo TARGETHOP       
-                
+                        
+                        PRIMARYUSERS =  sh(script: "aws connect list-users --instance-id ${INSTANCEARN} ", returnStdout: true).trim()
+                        echo PRIMARYUSERS
+                        
+                        PRIMARYRPS =  sh(script: "aws connect list-routing-profiles --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYRPS
+                        
+                        PRIMARYSECPROS =  sh(script: "aws connect list-security-profiles --instance-id ${INSTANCEARN} ", returnStdout: true).trim()
+                        echo PRIMARYSECPROS
+                      
+                        PRIMARYHRCHY = sh(script: "aws connect list-user-hierarchy-groups --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYHRCHY
                     }
                 }
             }
         }
         
-        stage('Find missing queues') {
+        stage('List all Resources TARGET ') {
+            steps {
+                echo "List all Resources in both instance "
+                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {
+                    script {
+                        
+                        TARGETUSERS =  sh(script: "aws connect list-users --instance-id ${TRAGETINSTANCEARN} ", returnStdout: true).trim()
+                        echo TARGETUSERS
+                        
+                        TARGETRPS =  sh(script: "aws connect list-routing-profiles --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETRPS 
+                        
+                        TARGETSECPROS =  sh(script: "aws connect list-security-profiles --instance-id ${TRAGETINSTANCEARN} ", returnStdout: true).trim()
+                        echo TARGETSECPROS
+                      
+                        TARGETHRCHY = sh(script: "aws connect list-user-hierarchy-groups --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETHRCHY                      
+                    }
+                }
+            }
+        }
+        stage('Find missing users') {
             steps {
                 script {
-                    echo "Find missing queues in the target instance"
-                    def pl = jsonParse(PRIMARYHOP)
-                    def tl = jsonParse(TARGETHOP)
-                    int listSize = pl.HoursOfOperationSummaryList.size() 
+                    echo "Find missing users in the target instance"
+                    def pl = jsonParse(PRIMARYUSERS)
+                    def tl = jsonParse(TARGETUSERS)
+                    int listSize = pl.UserSummaryList.size() 
                     println "Primary list size $listSize"
                     for(int i = 0; i < listSize; i++){
-                        def obj = pl.HoursOfOperationSummaryList[i]
-                        qcName = obj.Name
+                        def obj = pl.UserSummaryList[i]
+                        String qcName = obj.Username
                         String qcId = obj.Id
-
-                        echo "${qcName}"
-                        echo "${qcId}"
                         boolean qcFound = checkList(qcName, tl)
                         if(qcFound == false) {
-                            println "Missing HRS Name : $qcName Id : $qcId"                                                              
-                            MISSINGQC = MISSINGQC.concat(qcId).concat(",")                                
+                            println "Missing Name : $qcName Id : $qcId"                                                              
+                            MISSINGLIST = MISSINGLIST.concat(qcId).concat(",")                                
                         }
                     }
                 }
-                echo "Missing list in the target instance -> ${MISSINGQC}"
+                echo "Missing list in the target instance -> ${MISSINGLIST}"
             }
         }
-      
-      
-        stage('Create the missing HRSOPR') {
+        
+        stage('Create the missing users') {
             steps {
-                echo "Create the missing HRSPOS in the target instance "                
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'eu-west-2') {   
+                echo "Create the missing users in the target instance "                
+                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560',region: 'eu-west-2') {   
                     script {
-                        def di=""
-                        def parsehop=""
-                        String json=""
-                        
-                        if(MISSINGQC.length() > 1 ){
-                            def qcList = MISSINGQC.split(",")
+                        if(MISSINGLIST.length() > 1 ){
+                            def qcList = MISSINGLIST.split(",")
                             for(int i = 0; i < qcList.size(); i++){
                                 String qcId = qcList[i]
                                 if(qcId.length() > 2){
-                                    di =  sh(script: "aws connect  describe-hours-of-operation --instance-id ${INSTANCEARN} --hours-of-operation-id ${qcId} --output json ${' > '}${qcId}${'.json'}", returnStdout: true).trim()
+                                    def di =  sh(script: "aws connect describe-user --instance-id ${INSTANCEARN} --user-id ${qcId}", returnStdout: true).trim()
                                     echo di
-                                    def CONFIGDETAILS1 = sh(script: "${'cat '}${qcId}${'.json'}" , returnStdout: true).trim()
-                                    def config1 = jsonParse(CONFIGDETAILS1)
-                                    json = config1.HoursOfOperation.Config
-                                    echo "${json}"
-                                    json = json.replace ('=',':')
-                                    json = json.replace ('Day','"Day"')
-                                    json = json.replace ('Hours','"Hours"')
-                                    json = json.replace ('Minutes','"Minutes"')
-                                    json = json.replace ('EndTime','"EndTime"')
-                                    json = json.replace ('StartTime','"StartTime"')
-                                    json = json.replace ('MONDAY','"MONDAY"')
-                                    json = json.replace ('TUESDAY','"TUESDAY"')
-                                    json = json.replace ('WEDNESDAY','"WEDNESDAY"')
-                                    json = json.replace ('THURSDAY','"THURSDAY"')
-                                    json = json.replace ('FRIDAY','"FRIDAY"')
-                                    json = json.replace ('SATURDAY','"SATURDAY"')
-                                    json = json.replace ('SUNDAY','"SUNDAY"')
-                                    json = json.replace('"','\"')
-
-                                    def json1= toJSON(json)
-                                    echo "${json1}"
-
-                                    withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {
-                                    script{
-                                    def dic =  sh(script: "aws connect create-hours-of-operation --instance-id ${TRAGETINSTANCEARN} --name ${config1.HoursOfOperation.Name} --description ${config1.HoursOfOperation.Description} --time-zone ${config1.HoursOfOperation.TimeZone} --config ${json1}", returnStdout: true).trim()
-                                    echo "${dic}"
+                                    def user = jsonParse(di)
+                                    
+                                    userName = " --username " + user.User.Username
+                                    pwd = "--password Connect@12312"                                    
+                                    firstName = user.User.IdentityInfo.FirstName
+                                    lastName = user.User.IdentityInfo.LastName
+                                    email = user.User.IdentityInfo.Email                                    
+                                    idInfo = " --identity-info " + "FirstName=" + firstName + ",LastName=" + lastName +",Email=" + email                                    
+                                    phoneType = user.User.PhoneConfig.PhoneType
+                                    autoAccept = user.User.PhoneConfig.AutoAccept
+                                    acw = user.User.PhoneConfig.AfterContactWorkTimeLimit
+                                    dpn = user.User.PhoneConfig.DeskPhoneNumber                                    
+                                    pc = " --phone-config " + "PhoneType=" + phoneType + ",AutoAccept=" + autoAccept + ",AfterContactWorkTimeLimit=" + acw + ",DeskPhoneNumber=" + dpn                                     
+                                    rpId = "--routing-profile-id " + getRPId(PRIMARYRPS, user.User.RoutingProfileId, TARGETRPS)                                    
+                                    spIds = "--security-profile-ids " + getSPIds(PRIMARYSECPROS, user.User.SecurityProfileIds, TARGETSECPROS)
+                                    hid = ""
+                                    if(user.User.HierarchyGroupId != null) {
+                                         hid = "--hierarchy-group-id " + getHrRchyId(PRIMARYHRCHY, user.User.HierarchyGroupId, TARGETHRCHY)
                                     }
+                                    
+                                    user = null
+
+                                    withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560',region: 'us-west-2') {   
+                                    script {
+                                            def cq =  sh(script: "aws connect create-user ${userName} ${pwd} ${idInfo} ${pc} ${spIds} ${rpId} ${hid} --instance-id ${TRAGETINSTANCEARN} " , returnStdout: true).trim()
+                                            echo cq
+
+                                        }
                                     }
+                                    
                                     
                                }
                             }
-
                         }
                     }                
                 }
             }
         } 
+
+         stage('user sync complete') {
+            steps {
+                echo "completed sycnronizing both instances"                
+                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {   
+                    /*script{
+
+                        def cq =  sh(script: "aws connect create-user ${userName} ${pwd} ${idInfo} ${pc} ${spIds} ${rpId} ${hid} --instance-id ${TRAGETINSTANCEARN} " , returnStdout: true).trim()
+                        echo cq
+                    }*/
+                    echo "completed sycnronizing both instances"                
+                }
+            } 
+         }
+        
+        
         
      }
 }
 
 
 @NonCPS
-
 def jsonParse(def json) {
-    new groovy.json.JsonSlurperClassic().parseText(json)
+    new groovy.json.JsonSlurper().parseText(json)
 }
 
 def toJSON(def json) {
     new groovy.json.JsonOutput().toJson(json)
 }
 
-def toSTRINGTOJSON(def json) {
-    new groovy.json.JsonOutput().toJson(json)
-}
-
-def toJSON2(def json) {
-    JsonOutput.prettyPrint(JsonOutput.toJson(json))
-}
-
 def checkList(qcName, tl) {
     boolean qcFound = false
-    for(int i = 0; i < tl.HoursOfOperationSummaryList.size(); i++){
-        def obj2 = tl.HoursOfOperationSummaryList[i]
-        String qcName2 = obj2.Name
+    for(int i = 0; i < tl.UserSummaryList.size(); i++){
+        def obj2 = tl.UserSummaryList[i]
+        String qcName2 = obj2.Username
         if(qcName2.equals(qcName)) {
             qcFound = true
             break
@@ -207,74 +213,83 @@ def checkList(qcName, tl) {
     return qcFound
 }
 
-def getFlowId (primary, flowId, target) {
+def getRPId (primary, searchId, target) {
     def pl = jsonParse(primary)
     def tl = jsonParse(target)
     String fName = ""
     String rId = ""
-    println "Searching for flowId : $flowId"
-    for(int i = 0; i < pl.ContactFlowSummaryList.size(); i++){
-        def obj = pl.ContactFlowSummaryList[i]    
-        if (obj.Id.equals(flowId)) {
+    println "Searching for Id : $searchId"
+    for(int i = 0; i < pl.RoutingProfileSummaryList.size(); i++){
+        def obj = pl.RoutingProfileSummaryList[i]    
+        if (obj.Id.equals(searchId)) {
             fName = obj.Name
-            println "Found flow name : $fName"
+            println "Found Name : $fName"
             break
         }
     }
-    println "Searching for flow name : $fName"        
-    for(int i = 0; i < tl.ContactFlowSummaryList.size(); i++){
-        def obj = tl.ContactFlowSummaryList[i]    
+    println "Searching for name : $fName"        
+    for(int i = 0; i < tl.RoutingProfileSummaryList.size(); i++){
+        def obj = tl.RoutingProfileSummaryList[i]    
         if (obj.Name.equals(fName)) {
             rId = obj.Id
-            println "Found flow id : $rId"
+            println "Found matching id : $rId"
             break
         }
     }
     return rId
 }
 
-def getQuickConnectId (primary, name, target) {
-    echo "come inside getQuickConnectId"
+def getSPIds (primary, searchIds, target) {
+    String rId = ""
+    searchIds.each{ sId -> 
+        def pl = jsonParse(primary)
+        def tl = jsonParse(target)
+        String fName = ""
+        println "Searching for Id : $sId"
+        for(int i = 0; i < pl.SecurityProfileSummaryList.size(); i++){
+            def obj = pl.SecurityProfileSummaryList[i]    
+            if (obj.Id.equals(sId)) {
+                fName = obj.Name
+                println "Found Name : $fName"
+                break
+            }
+        }
+        println "Searching for name : $fName"        
+        for(int i = 0; i < tl.SecurityProfileSummaryList.size(); i++){
+            def obj = tl.SecurityProfileSummaryList[i]    
+            if (obj.Name.equals(fName)) {
+                rId = rId + " " + obj.Id
+                println "Found matching id : $rId"
+                break
+            }
+        }
+    };
+                  
+    return rId
+}
+
+def getHrRchyId (primary, searchId, target) {
     def pl = jsonParse(primary)
     def tl = jsonParse(target)
-    String fName = name
+    String fName = ""
     String rId = ""
-    echo "Find for name : ${fName}"       
-    echo "tl.QuickConnectSummaryList.size()  : ${tl.QuickConnectSummaryList.size()}"
-    for(int i = 0; i < tl.QuickConnectSummaryList.size(); i++){
-        echo "getQuickConnectId quick connect arns count : ${i}"        
-        def obj = tl.QuickConnectSummaryList[i]    
+    println "Searching for Id : $searchId"
+    for(int i = 0; i < pl.UserHierarchyGroupSummaryList.size(); i++){
+        def obj = pl.UserHierarchyGroupSummaryList[i]    
+        if (obj.Id.equals(searchId)) {
+            fName = obj.Name
+            println "Found Name : $fName"
+            break
+        }
+    }
+    println "Searching for name : $fName"        
+    for(int i = 0; i < tl.UserHierarchyGroupSummaryList.size(); i++){
+        def obj = tl.UserHierarchyGroupSummaryList[i]    
         if (obj.Name.equals(fName)) {
             rId = obj.Id
-            println "Found id : $rId"
+            println "Found matching id : $rId"
             break
         }
     }
     return rId
 }
-
-def getHopId (primary, userId, target) {
-    def pl = jsonParse(primary)
-    def tl = jsonParse(target)
-    String fName = ""
-    String rId = ""
-    println "Searching for userId : $userId"
-    for(int i = 0; i < pl.HoursOfOperationSummaryList.size(); i++){
-        def obj = pl.HoursOfOperationSummaryList[i]    
-        if (obj.Id.equals(userId)) {
-            fName = obj.Name
-            println "Found name : $fName"
-            break
-        }
-    }
-    println "Searching for Id for : $fName"        
-    for(int i = 0; i < tl.HoursOfOperationSummaryList.size(); i++){
-        def obj = tl.HoursOfOperationSummaryList[i]    
-        if (obj.Name.equals(fName)) {
-            rId = obj.Id
-            println "Found Id : $rId"
-            break
-        }
-    }
-    return rId
- }
