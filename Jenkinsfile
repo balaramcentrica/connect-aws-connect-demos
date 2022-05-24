@@ -1,228 +1,138 @@
+import groovy.json.JsonSlurper;
+import groovy.json.JsonSlurperClassic ;
+import groovy.json.JsonOutput;
+
+@NonCPS
+def jsonParse(def json) {
+    new groovy.json.JsonSlurperClassic().parseText(json)
+}
+
+def toJSON(def json) {
+    new groovy.json.JsonOutput().toJson(json)
+}
+
+def toSTRINGTOJSON(def json) {
+    new groovy.json.JsonOutput().toJson(json)
+}
+
+def toJSON2(def json) {
+    JsonOutput.prettyPrint(JsonOutput.toJson(json))
+}
+
+def TRAGET_INSTANCE_ID=""
+
 pipeline { 
     agent any 
     
-   
-    stages {
-        stage('Delete-Lambdas') { 
-            steps { 
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {
-                script{
-                    try{
-                    sh'''
-                    #!/bin/bash
-                        download_code () {
-                            local OUTPUT=$1
-                            aws lambda  delete-function --function-name $OUTPUT
-                        }
-                        for run in $(aws lambda list-functions  --query 'Functions[].FunctionName' --output text);
-                        do
-                            download_code "$run"
-                            echo $run
-                        done
-                    ''' 
-                    }catch(Exception ex) {
-                        println("Catching the exception");
+    parameters {
+        choice(choices: ['DEV', 'STAGE','PROD'], description: 'AWS ENVIRONMENT?', name: 'PickAnStage')
+        choice(choices: ['eu-west-2'], description: 'AWS SORUCE REGION?', name: 'PickAnSRCRegion')
+        choice(choices: ['us-west-2'], description: 'AWS TARGET REGION?', name: 'PickAnTARRegion')
+    }
+    
+        stages {
+            stage('Initial-Connect-ExpImp-CreateNewInstance') { 
+                steps { 
+                    script{
+                        build job: 'AWS-Connect-ExpImp-CreateNewInstance',parameters:[
+                                                                            string(name:'STAGES',value:params.PickAnStage),
+                                                                            string(name:'SREGIONS',value:params.PickAnSRCRegion),
+                                                                            string(name:'TREGIONS',value:params.PickAnTARRegion)
+                                                                            ]                
                     }
-
-                 }
-               }
-            }
+                }
         }
-        stage('Delete-DeliveryStreamNames'){
+        
+        stage('Connect-HOUROPS-Sync'){
             steps {
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {
-                script{
-                try{
-                sh'''
-                    #!/bin/bash
-                        download_code () {
-                            local OUTPUT=$1
-                            aws firehose delete-delivery-stream --delivery-stream-name $OUTPUT --allow-force-delete
-                        }
-                        for run in $(aws firehose list-delivery-streams  --query 'DeliveryStreamNames[]' --output text);
-                        do
-                            download_code "$run"
-                            echo $run
-                        done
-                    '''
-                }catch(Exception ex) {
-                        println("Catching the exception");
-                    }
-                }
-                }
-
-                
-            }
-        }
-        stage('Delete-StreamNames') {
-            steps {
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') { 
                 script{
 
-                    try{
-                    sh'''
-                    #!/bin/bash
-                        download_code () {
-                            local OUTPUT=$1
-                            aws kinesis delete-stream --stream-name $OUTPUT --enforce-consumer-deletion
-                        }
-                        for run in $(aws kinesis list-streams --query 'StreamNames[]' --output text);
-                        do
-                            download_code "$run"
-                            echo $run
-                        done
-                    '''
-                    }catch(Exception ex) {
-                        println("Catching the exception");
-                    }
+                    TRAGET_INSTANCE_ID= sh(script: 'cat /var/lib/jenkins/newconnectInstance.txt', returnStdout: true).trim()
+                    echo "TRAGET_INSTANCE_ID    " + TRAGET_INSTANCE_ID
+                    build job: 'AWS-Connect-HRSOPS-Sync',parameters: [
+                                                                     string(name:'TRAGET_INSTANCE',value:TRAGET_INSTANCE_ID),
+                                                                     string(name:'STAGES',value:params.PickAnStage),
+                                                                     string(name:'SREGIONS',value:params.PickAnSRCRegion),
+                                                                     string(name:'TREGIONS',value:params.PickAnTARRegion)
+                                                                     ]  
                 }
-               }
             }
         }
         
-        stage('Delete-Amplify') {
+        stage('Connect-Queue-Sync'){
             steps {
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') { 
-                    script{
-
-                        try{
-                        sh'''
-                        #!/bin/bash
-                            download_code () {
-                                local OUTPUT=$1
-                                aws amplify delete-app --app-id $OUTPUT
-                            }
-                            for run in $(aws amplify list-apps --query 'apps[].appId' --output text);
-                            do
-                                download_code "$run"
-                                echo $run
-                            done
-                        '''
-                        }catch(Exception ex) {
-                        println("Catching the exception");
-                    }
-                    }
-               }
-            }
-        }
-
-
-        stage('Delete-DynamoDB') {
-            steps {
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') { 
-                    script{
-
-                        try{
-                        sh'''
-                        #!/bin/bash
-                            download_code () {
-                                local OUTPUT=$1
-                                aws dynamodb delete-table --table-name $OUTPUT
-                            }
-                            for run in $(aws dynamodb list-tables --query 'TableNames[]' --output text);
-                            do
-                                download_code "$run"
-                                echo $run
-                            done
-                        '''
-                        }catch(Exception ex) {
-                        println("Catching the exception");
-                    }
-                    }
-               }
+                script{
+                    TRAGET_INSTANCE_ID= sh(script: 'cat /var/lib/jenkins/newconnectInstance.txt', returnStdout: true).trim()
+                    echo "TRAGET_INSTANCE_ID    " + TRAGET_INSTANCE_ID
+                    build job: 'AWS-Connect-Queue-Sync',parameters: [
+                                                                     string(name:'TRAGET_INSTANCE', value:TRAGET_INSTANCE_ID),
+                                                                     string(name:'STAGES',value:params.PickAnStage),
+                                                                     string(name:'SREGIONS',value:params.PickAnSRCRegion),
+                                                                     string(name:'TREGIONS',value:params.PickAnTARRegion),
+                                                                     ]   
+                }
             }
         }
         
-        stage('Delete-S3Buckets') {
+        stage('RoutingProfile-Sync') {
             steps {
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') { 
-                    script{
-
-                        try {
-                        sh'''
-                        #!/bin/bash
-                            aws s3api delete-bucket --bucket "amazon-connect-callrecording" --region us-west-2
-                            aws s3api delete-bucket --bucket "amazon-connect-chatrecording" --region us-west-2
-                            aws s3api delete-bucket --bucket "amazon-connect-exportreports" --region us-west-2
-                            aws s3api delete-bucket --bucket "amazon-connect-agentsevents" --region us-west-2
-                        '''
-
-                        }catch(Exception ex) {
-                        println("Catching the exception");
-                    }
-                    }
-               }
-            }
-        }
-
-        stage('Delete-LEX') {
-            steps {
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') { 
-                    script{
-                        try{
-                        sh'''
-                        #!/bin/bash
-                            aws  lex-models  delete-bot --name "BookTrip_enGB"
-                        '''
-                        }catch(Exception ex) {
-                        println("Catching the exception");
-                    }
-                    }
-               }
+                 script{
+                    TRAGET_INSTANCE_ID= sh(script: 'cat /var/lib/jenkins/newconnectInstance.txt', returnStdout: true).trim()
+                    echo "TRAGET_INSTANCE_ID    " + TRAGET_INSTANCE_ID
+                    build job: 'AWS-Connect-RoutingProfile-Sync',parameters: [
+                                                                     string(name: 'TRAGET_INSTANCE', value:TRAGET_INSTANCE_ID),
+                                                                     string(name:'STAGES',value:params.PickAnStage),
+                                                                     string(name:'SREGIONS',value:params.PickAnSRCRegion),
+                                                                     string(name:'TREGIONS',value:params.PickAnTARRegion)
+                                                                     ]  
+                }
             }
         }
         
-        stage('Delete-APIGW') {
+        stage('Users-Sync') {
             steps {
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') { 
-                    script{
-                        
-                        try{
-                        sh'''
-                        #!/bin/bash
-                            download_code () {
-                                local OUTPUT=$1
-                                aws apigateway delete-rest-api --rest-api-id $OUTPUT
-                            }
-                            for run in $(aws apigateway get-rest-apis --query 'items[].id' --output text);
-                            do
-                                download_code "$run"
-                                echo $run
-                            done
-                        '''   
-                        }catch(Exception ex) {
-                        println("Catching the exception");
-                    }                     
-                    }
-               }
+                script{
+                TRAGET_INSTANCE_ID= sh(script: 'cat /var/lib/jenkins/newconnectInstance.txt', returnStdout: true).trim()
+                echo "TRAGET_INSTANCE_ID    " + TRAGET_INSTANCE_ID
+                build job: 'AWS-Connect-Users-Sync',parameters: [
+                                                                     string(name: 'TRAGET_INSTANCE', value:TRAGET_INSTANCE_ID),
+                                                                     string(name:'STAGES',value:params.PickAnStage),
+                                                                     string(name:'SREGIONS',value:params.PickAnSRCRegion),
+                                                                     string(name:'TREGIONS',value:params.PickAnTARRegion),
+                                                                ]   
+                }
+            }
+        }
+        
+        stage('QuickConnect-Sync') {
+            steps {
+                 script{
+                    TRAGET_INSTANCE_ID= sh(script: 'cat /var/lib/jenkins/newconnectInstance.txt', returnStdout: true).trim()
+                    echo "TRAGET_INSTANCE_ID    " + TRAGET_INSTANCE_ID
+                    build job: 'AWS-Connect-QuickConnect-Sync',parameters: [
+                                                                     string(name: 'TRAGET_INSTANCE', value:TRAGET_INSTANCE_ID),
+                                                                     string(name:'STAGES',value:params.PickAnStage),
+                                                                     string(name:'SREGIONS',value:params.PickAnSRCRegion),
+                                                                     string(name:'TREGIONS',value:params.PickAnTARRegion)
+                                                                     ]  
+                }
             }
         }
 
-        stage('Delete-AWSInstance') {
+        stage('ContactFlow-Sync') {
             steps {
-                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') { 
-                    script{
-                        try{
-                        
-                        sh'''
-                        #!/bin/bash
-                            download_code () {
-                                local OUTPUT=$1
-                                aws connect delete-instance --instance-id $OUTPUT
-                            }
-                            for run in $(aws connect list-instances --query 'InstanceSummaryList[].Id' --output text);
-                            do
-                                download_code "$run"
-                                echo $run
-                            done
-                        ''' 
-                        }catch(Exception ex) {
-                        println("Catching the exception");
-                    }                       
-                    }
-               }
-            }
+                 script{
+                    TRAGET_INSTANCE_ID= sh(script: 'cat /var/lib/jenkins/newconnectInstance.txt', returnStdout: true).trim()
+                    echo "TRAGET_INSTANCE_ID    " + TRAGET_INSTANCE_ID
+                    build job: 'AWS-Connect-ContactFlow-Sync',parameters: [
+                                                                     string(name: 'TRAGET_INSTANCE', value:TRAGET_INSTANCE_ID),
+                                                                     string(name:'STAGES',value:params.PickAnStage),
+                                                                     string(name:'SREGIONS',value:params.PickAnSRCRegion),
+                                                                     string(name:'TREGIONS',value:params.PickAnTARRegion)
+                                                                     ]  
+                        }
+                }
         }
-
+        
     }
 }
