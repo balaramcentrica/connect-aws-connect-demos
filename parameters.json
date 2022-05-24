@@ -1,0 +1,5 @@
+{
+  "primaryInstance" : "49782017-80ae-4b24-ab1d-ab2ec88a86d9",
+  "targetInstance" : "b113d08f-1b91-4c6c-b969-5f0ba6b83803",
+  "confighop":"[{\"EndTime\":{\"Hours\":17,\"Minutes\":0},\"StartTime\":{\"Hours\":9,\"Minutes\":0},\"Day\":\"MONDAY\"},{\"EndTime\":{\"Hours\":17,\"Minutes\":0},\"StartTime\":{\"Hours\":9,\"Minutes\":0},\"Day\":\"TUESDAY\"},{\"EndTime\":{\"Hours\":17,\"Minutes\":0},\"StartTime\":{\"Hours\":9,\"Minutes\":0},\"Day\":\"WEDNESDAY\"},{\"EndTime\":{\"Hours\":17,\"Minutes\":0},\"StartTime\":{\"Hours\":9,\"Minutes\":0},\"Day\":\"SATURDAY\"},{\"EndTime\":{\"Hours\":17,\"Minutes\":0},\"StartTime\":{\"Hours\":9,\"Minutes\":0},\"Day\":\"THURSDAY\"},{\"EndTime\":{\"Hours\":17,\"Minutes\":0},\"StartTime\":{\"Hours\":9,\"Minutes\":0},\"Day\":\"SUNDAY\"},{\"EndTime\":{\"Hours\":17,\"Minutes\":0},\"StartTime\":{\"Hours\":9,\"Minutes\":0},\"Day\":\"FRIDAY\"}]"
+}
