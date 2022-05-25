@@ -1,0 +1,11 @@
+[
+    {
+        "primaryInstance":"49782017-80ae-4b24-ab1d-ab2ec88a86d9",
+        "targetInstance":"12821c17-97a6-4525-a55e-49a6bdcc89d5",
+        "flowname":"Test_contact_flow",
+        "flowId":"fc0d6cfd-3ccf-4e20-95bc-396c3a04ad28",
+        "instanceId":"",
+        "flowtype":"CONTACT_FLOW",
+        "flowcontent":"{\"Version\":\"2019-10-30\",\"StartAction\":\"c5bc7a2c-130d-464d-a34c-590aaeac3689\",\"Metadata\":{\"entryPointPosition\":{\"x\":20,\"y\":20},\"snapToGrid\":false,\"ActionMetadata\":{\"c5bc7a2c-130d-464d-a34c-590aaeac3689\":{\"position\":{\"x\":246,\"y\":124}}}},\"Actions\":[{\"Identifier\":\"c5bc7a2c-130d-464d-a34c-590aaeac3689\",\"Type\":\"DisconnectParticipant\",\"Parameters\":{},\"Transitions\":{}}]}"
+    }    
+ ]
