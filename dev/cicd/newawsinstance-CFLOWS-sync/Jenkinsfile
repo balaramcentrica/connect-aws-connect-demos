@@ -1,0 +1,482 @@
+import groovy.json.JsonSlurper;
+import groovy.json.JsonSlurperClassic ;
+import groovy.json.JsonOutput;
+import groovy.json.*
+import java.util.zip.*;
+import java.util.Random;
+import groovy.json.JsonBuilder
+import groovy.io.FileType
+import net.sf.json.groovy.JsonSlurper;
+
+@NonCPS
+def jsonParse(def json) {
+    new groovy.json.JsonSlurperClassic().parseText(json)
+}
+
+def toJSON(def json) {
+    new groovy.json.JsonOutput().toJson(json)
+}
+
+def toSTRINGTOJSON(def json) {
+    new groovy.json.JsonOutput().toJson(json)
+}
+
+def toJSON2(def json) {
+    JsonOutput.prettyPrint(JsonOutput.toJson(json))
+}
+
+def giveMeKey(){
+    def key
+    String alphabet = (('A'..'N')+('P'..'Z')+('a'..'k')+('m'..'z')+('2'..'9')).join() 
+    def length = 12
+    key = new Random().with {
+        (1..length).collect { alphabet[ nextInt( alphabet.length() ) ] }.join()
+        }
+    return key
+}
+
+
+String INSTANCEARN = ""
+String FLOWID = ""
+String FLOWNAME=""
+String TRAGETINSTANCEARN = ""
+String TARGETFLOWID = ""
+String TARGETJSON = ""
+String PRIMARYQC = ""
+String TARGETQC = ""
+String PRIMARYQUEUES = ""
+String TARGETQUEUES = ""
+String PRIMARYUSERS = ""
+String TARGETUSERS = ""
+String PRIMARYCFS = ""
+String TARGETCFS = ""
+String PRIMARYHOP = ""
+String TARGETHOP = ""
+String PRIMARYPROMPTS = ""
+String TARGETPROMPTS = ""
+String PRIMARYLEXBOTS=""
+String TARGETLEXBOTS=""
+String PRIMARYLAMBDAS=""
+String TARGETLAMBDAS=""
+def TARGETJSON1=""
+
+
+pipeline {
+    
+    agent any
+	
+    parameters {
+        string(name: 'TRAGET_INSTANCE',defaultValue:'',description:'AWS TARGET ID')
+    }
+	
+    stages {
+
+    stage('Init Jenkins Jobs') {
+        steps {
+            script{
+                try{
+                    sh(script: "rm -r seedjob", returnStdout: true)    
+                }catch (Exception e) {
+                    echo 'Exception occurred: ' + e.toString()
+                }                   
+                sh(script: "git clone https://github.com/rambusnis/seedjob.git", returnStdout: true)
+                sh(script: "ls -ltr", returnStatus: true)
+            }
+        }
+    }      
+
+    stage('read config from git') {
+            steps{
+                echo 'Reading the contact flow content '
+                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'eu-west-2') {
+                script {
+                    CALLFLOWCONFIGFILE= sh(script: 'cat ContactFlowConfig.json', returnStdout: true).trim()
+                    def cfcparsedJson = new groovy.json.JsonSlurperClassic().parseText(CALLFLOWCONFIGFILE)
+                    for(int cfci = 0; cfci < cfcparsedJson.size(); cfci++){
+                            INSTANCEARN = "${cfcparsedJson[cfci].primaryInstance}"
+                            FLOWID = "${cfcparsedJson[cfci].flowId}"
+                            FLOWNAME = "${cfcparsedJson[cfci].flowname}"
+                            //TRAGETINSTANCEARN =  "${cfcparsedJson[cfci].targetInstance}"
+			                TRAGETINSTANCEARN = params.TRAGET_INSTANCE
+			                //TRAGETINSTANCEARN = "65846942-5ac3-4ebc-bbe9-9932e13a38c7"
+                            TARGETJSON =  "${cfcparsedJson[cfci].flowcontent}"
+                    }
+                }
+            }
+        }
+    }
+
+    stage('Create New Flows after arn resolution') {
+            steps {
+                echo "deploy flow content "
+                
+                /*withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'eu-west-2') {
+                script {
+                    try{
+                        String cfcshret1 =sh(script: "aws connect describe-contact-flow --instance-id ${INSTANCEARN} --contact-flow-id ${FLOWID}", returnStdout: true).trim()
+                        def cfcshret2 = new groovy.json.JsonSlurperClassic().parseText(cfcshret1)
+                        echo "${cfcshret2}" 
+                        echo "${cfcshret2.ContactFlow.Content}" 
+                        TARGETJSON = cfcshret2.ContactFlow.Content
+                        //TARGETJSON=TARGETJSON.replace('"','\"')
+                        //TARGETJSON1=TARGETJSON
+                        echo "SORUCE CONTENT                ${TARGETJSON}" 
+                        
+                    }catch(Exception ex) {
+                        println("Catching the exception");
+                    }
+			
+                    }
+                }*/
+                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {
+                script {
+                    try{
+                        String cfcshret =sh(script: "aws connect create-contact-flow --instance-id ${TRAGETINSTANCEARN} --name ${FLOWNAME} --type ${'CONTACT_FLOW'} --content ${toJSON(TARGETJSON)}", returnStdout: true).trim()
+                        def cfcshret3 = new groovy.json.JsonSlurperClassic().parseText(cfcshret)
+                        echo "${cfcshret3}" 
+                        //echo "${cfcshret3.ContactFlowId}" 
+                        //TARGETFLOWID = cfcshret3.ContactFlowId
+                    }catch(Exception ex) {
+                        println("Catching the exception");
+                    }
+			
+                    }
+                }
+            }
+    }
+    
+    stage('read all Source resources') {
+            steps {
+                echo 'Reading all the resources for ARN resolution'
+                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'eu-west-2') {
+                    script {
+                        PRIMARYUSERS =  sh(script: "aws connect list-users --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYUSERS
+                        
+                        PRIMARYQUEUES =  sh(script: "aws connect list-queues --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYQUEUES
+
+                        PRIMARYLEXBOTS =  sh(script: "aws connect list-lex-bots --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYLEXBOTS
+                        
+                        PRIMARYQC =  sh(script: "aws connect list-quick-connects --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYQC
+                        
+                        PRIMARYCFS =  sh(script: "aws connect list-contact-flows --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYCFS
+                        
+                        PRIMARYHOP = sh(script: "aws connect list-hours-of-operations --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYHOP
+
+                        PRIMARYPROMPTS = sh(script: "aws connect list-prompts --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYPROMPTS
+
+                        PRIMARYLAMBDAS = sh(script: "aws connect list-lambda-functions --instance-id ${INSTANCEARN}", returnStdout: true).trim()
+                        echo PRIMARYLAMBDAS
+                    }
+                }
+            }
+            
+        }
+    stage('read all Target resources') {
+            steps {
+                echo 'Reading all the resources for ARN resolution'
+                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {
+                    script {
+                        TARGETUSERS =  sh(script: "aws connect  list-users --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETUSERS
+                        
+                        TARGETQUEUES =  sh(script: "aws connect list-queues --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETQUEUES
+                        
+                        TARGETLEXBOTS =  sh(script: "aws connect list-lex-bots --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETLEXBOTS                       
+
+                        TARGETQC =  sh(script: "aws connect list-quick-connects --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETQC 
+                        
+                        TARGETCFS =  sh(script: "aws connect list-contact-flows --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETCFS
+                        
+                        TARGETHOP = sh(script: "aws connect list-hours-of-operations --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETHOP
+
+                        TARGETPROMPTS = sh(script: "aws connect list-prompts --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETPROMPTS
+
+                        TARGETLAMBDAS = sh(script: "aws connect list-lambda-functions --instance-id ${TRAGETINSTANCEARN}", returnStdout: true).trim()
+                        echo TARGETLAMBDAS
+                        
+                    }
+                }
+            }
+            
+        }
+
+    
+
+
+
+    stage('read flow from api') {
+            steps {
+                    echo 'Reading the contact flow content via api'
+                    withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'eu-west-2') {
+                        script {
+                            def di =  sh(script: "aws connect describe-contact-flow --instance-id ${INSTANCEARN} --contact-flow-id ${FLOWID}", returnStdout: true).trim()
+                            echo di
+                            def flow = jsonParse(di)
+                            def content = jsonParse(flow.ContactFlow.Content)
+                            TARGETJSON = flow.ContactFlow.Content   
+
+                            echo "SOURCE JSON FILE     : ${toJSON(TARGETJSON)}" 
+
+                            def flowId = getFlowId(PRIMARYCFS, flow.ContactFlow.Arn,TARGETCFS).split("/")
+                            TARGETFLOWID = flowId[3]
+                            //TARGETFLOWID ="00988339-1bfa-49f5-b1b6-c211ddbb78d3"
+                            String arn = ""
+                            echo "Need to update flowId : ${TARGETFLOWID}"
+                            for(int i =0; i < content.Actions.size(); i++ )
+                            {
+                                def obj = content.Actions[i]
+                                if(obj.Type.equals('MessageParticipant')) {
+									if(obj.Parameters.PromptId != null) {
+										arn = getPromptId (PRIMARYPROMPTS, obj.Parameters.PromptId, TARGETPROMPTS)
+										TARGETJSON = TARGETJSON.replaceAll(obj.Parameters.PromptId, arn)									
+									}
+                                } else if(obj.Type.equals('ConnectParticipantWithLexBot')) {
+                                    //Lex BOTS 
+                                    TARGETJSON = TARGETJSON.replace(obj.Parameters.LexBot.Region,'us-west-2')	
+                                    TARGETJSON = TARGETJSON.replace(obj.Parameters.LexBot.Alias, "${obj.Parameters.LexBot.Name}")	
+                                } 
+                                else if(obj.Type.equals('UpdateContactTargetQueue')) {
+                                    //handle queues
+                                    arn = getQueueId (PRIMARYQUEUES, obj.Parameters.QueueId, TARGETQUEUES)
+                                    TARGETJSON = TARGETJSON.replaceAll(obj.Parameters.QueueId, arn)
+                                    
+                                } else if(obj.Type.equals('UpdateContactEventHooks')) {
+                                    //handle flows
+                                    if(obj.Parameters.EventHooks.AgentWhisper){                                        
+                                        arn = getFlowId (PRIMARYCFS, obj.Parameters.EventHooks.AgentWhisper, TARGETCFS)
+                                        TARGETJSON = TARGETJSON.replaceAll(obj.Parameters.EventHooks.AgentWhisper, arn)
+                                    } else if(obj.Parameters.EventHooks.CustomerQueue){
+                                        arn = getFlowId (PRIMARYCFS, obj.Parameters.EventHooks.CustomerQueue, TARGETCFS)
+                                        TARGETJSON = TARGETJSON.replaceAll(obj.Parameters.EventHooks.CustomerQueue, arn)
+                                    } else if(obj.Parameters.EventHooks.CustomerRemaining){
+                                        arn = getFlowId (PRIMARYCFS, obj.Parameters.EventHooks.CustomerRemaining, TARGETCFS)
+                                        TARGETJSON = TARGETJSON.replaceAll(obj.Parameters.EventHooks.CustomerRemaining, arn)
+                                    }
+                                    
+                                } else if(obj.Type.equals('InvokeLambdaFunction')) {
+                                    //handle lambda
+                                    String lamArn = obj.Parameters.LambdaFunctionARN
+                                    lamArn = lamArn.replace('eu-west-2','us-west-2')
+                                    TARGETJSON = TARGETJSON.replace(obj.Parameters.LambdaFunctionARN,lamArn)	
+                                    
+                                } else if(obj.Type.equals('TransferToFlow')) {
+                                    //handle flows
+                                    arn = getFlowId (PRIMARYCFS, obj.Parameters.ContactFlowId, TARGETCFS)
+                                    TARGETJSON = TARGETJSON.replaceAll(obj.Parameters.ContactFlowId, arn)
+                                    
+                                } else if(obj.Type.equals('CheckHoursOfOperation')) {
+                                    //handle hours of operation
+                                    arn = getHOPId (PRIMARYHOP, obj.Parameters.HoursOfOperationId, TARGETHOP)
+                                    TARGETJSON = TARGETJSON.replaceAll(obj.Parameters.HoursOfOperationId, arn)
+                                    
+                                } else {
+                                    //handle any other resource
+                                    echo "No handling for ${obj.Parameters} of type : ${obj.Type}"
+                                }
+                            }
+                            String json = toJSON(TARGETJSON)
+                            //json = toJSON(json)
+                            TARGETJSON = json.toString()
+                            TARGETJSON = TARGETJSON.replace('eu-west-2','us-west-2')
+                            echo "TARGET JSON FILE     : ${TARGETJSON}" 
+                     }
+                }
+            }
+    }
+
+
+    stage('publish flow after arn resolution') {
+            steps {
+                echo "deploy flow content "
+                withAWS(credentials: '41adfa6b-ece9-44a7-8ae5-e605f2898560', region: 'us-west-2') {
+                    script {
+                        def di =  sh(script: "aws connect update-contact-flow-content --instance-id ${TRAGETINSTANCEARN} --contact-flow-id ${TARGETFLOWID} --content ${TARGETJSON}", returnStdout: true).trim()
+                        echo di
+                    }
+                }
+            }
+    }
+
+    
+
+
+    }
+}
+
+def getFlowId (primary, flowId, target) {
+    def pl = jsonParse(primary)
+    def tl = jsonParse(target)
+    String fName = ""
+    String rId = ""
+    println "Searching for flowId : $flowId"
+    for(int i = 0; i < pl.ContactFlowSummaryList.size(); i++){
+        def obj = pl.ContactFlowSummaryList[i]    
+        if (obj.Arn.equals(flowId)) {
+            fName = obj.Name
+            println "Found flow name : $fName"
+            break
+        }
+    }
+    println "Searching for flow name : $fName"        
+    for(int i = 0; i < tl.ContactFlowSummaryList.size(); i++){
+        def obj = tl.ContactFlowSummaryList[i]    
+        if (obj.Name.equals(fName)) {
+            rId = obj.Arn
+            println "Found flow id : $rId"
+            break
+        }
+    }
+    return rId
+}
+
+def getQueueId (primary, queueId, target) {
+    def pl = jsonParse(primary)
+    def tl = jsonParse(target)
+    String fName = ""
+    String rId = ""
+    println "Searching for queueId : $queueId"
+    for(int i = 0; i < pl.QueueSummaryList.size(); i++){
+        def obj = pl.QueueSummaryList[i]    
+        if (obj.Arn.equals(queueId)) {
+            fName = obj.Name
+            println "Found queue name : $fName"
+            break
+        }
+    }
+            
+    for(int i = 0; i < tl.QueueSummaryList.size(); i++){
+        def obj = tl.QueueSummaryList[i]    
+        if (obj.Name.equals(fName)) {
+            rId = obj.Arn
+            println "Found flow id : $rId"
+            break
+        }
+    }
+    return rId
+    
+}
+
+def getUserId (primary, userId, target) {
+    def pl = jsonParse(primary)
+    def tl = jsonParse(target)
+    String fName = ""
+    String rId = ""
+    println "Searching for userId : $userId"
+    for(int i = 0; i < pl.UserSummaryList.size(); i++){
+        def obj = pl.UserSummaryList[i]    
+        if (obj.Arn.equals(userId)) {
+            fName = obj.Username
+            println "Found user name : $fName"
+            break
+        }
+    }
+    println "Searching for userId for : $fName"        
+    for(int i = 0; i < tl.UserSummaryList.size(); i++){
+        def obj = tl.UserSummaryList[i]    
+        if (obj.Username.equals(fName)) {
+            rId = obj.Arn
+            println "Found flow id : $rId"
+            break
+        }
+    }
+    return rId    
+}
+
+def getHOPId (primary, hopId, target) {
+    def pl = jsonParse(primary)
+    def tl = jsonParse(target)
+    String fName = ""
+    String rId = ""
+    println "Searching for hopId : $hopId"
+    for(int i = 0; i < pl.HoursOfOperationSummaryList.size(); i++){
+        def obj = pl.HoursOfOperationSummaryList[i]    
+        if (obj.Arn.equals(hopId)) {
+            fName = obj.Name
+            println "Found name : $fName"
+            break
+        }
+    }
+    println "Searching for hopId for : $fName"        
+    for(int i = 0; i < tl.HoursOfOperationSummaryList.size(); i++){
+        def obj = tl.HoursOfOperationSummaryList[i]    
+        if (obj.Username.equals(fName)) {
+            rId = obj.Arn
+            println "Found id : $rId"
+            break
+        }
+    }
+    return rId    
+}
+
+def getPromptId (primary, searchId, target) {
+    def pl = jsonParse(primary)
+    def tl = jsonParse(target)
+    String fName = ""
+    String rId = ""
+    println "Searching for promptId : $searchId"
+    for(int i = 0; i < pl.PromptSummaryList.size(); i++){
+        def obj = pl.PromptSummaryList[i]    
+        if (obj.Arn.equals(searchId)) {
+            fName = obj.Name
+            println "Found name : $fName"
+            break
+        }
+    }
+    println "Searching for prompt for : $fName"        
+    for(int i = 0; i < tl.PromptSummaryList.size(); i++){
+        def obj = tl.PromptSummaryList[i]    
+        if (obj.Name.equals(fName)) {
+            rId = obj.Arn
+            println "Found id : $rId"
+            break
+        }
+    }
+    return rId    
+}
+
+
+
+def getLexId (primary, LexId, target) {
+    def pl = jsonParse(primary)
+    println "Searching for LexId : $p1"
+    def tl = jsonParse(target)
+    println "Searching for LexId : $t1"
+    String fName = ""
+    String rId = ""
+    println "Searching for LexId : $LexId"
+    for(int i = 0; i < pl.LexBots.size(); i++){
+        def obj = pl.LexBots[i]    
+        if (obj.Arn.equals(LexId)) {
+            fName = obj.Name
+            println "Found Lex name : $fName"
+            break
+        }
+    }
+    //println "Searching for flow name : $fName"        
+    //for(int i = 0; i < tl.LexBots.size(); i++){
+    //    def obj = tl.LexBots[i]    
+    //    if (obj.Name.equals(fName)) {
+    //        rId = obj.Arn
+    //        println "Found Lex id : $rId"
+    //        break
+    //    }
+    //}
+    return fName
+	
+}
+
+
+                                    
