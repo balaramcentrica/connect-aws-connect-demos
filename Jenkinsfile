@@ -29,6 +29,7 @@ pipeline {
             {
                     echo 'Deploying the application'
                     echo 'Deploying the application'
+                echo 'Deploying the application'
             } 
         } 
     }
