@@ -1,0 +1,8 @@
+{
+    "instanceAlias" : "prd-enkin-amzn-cog-dev",
+    "enableInboundCalls" : "true",
+    "enableOutboundCalls" : "true",
+    "identityManagementType" : "CONNECT_MANAGED",
+    "approvedOrigins" : "https://www.amazon.com,https://www.aws.com",
+    "contactFlowLogs" : "true"
+}
