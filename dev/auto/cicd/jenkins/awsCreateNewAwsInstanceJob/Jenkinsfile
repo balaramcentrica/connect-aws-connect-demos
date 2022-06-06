@@ -82,9 +82,9 @@ pipeline {
     // Kinesis Firehose Names
     // DynamoDB Table Names
     // API GW REST Names
-    // Amplify WEB Site
-    
+    // Amplify WEB Site    
 
+    
     stage('Init Jenkins Jobs') {
         steps {
             script{
@@ -101,7 +101,6 @@ pipeline {
 
                     // LAMDAS 
                     //****************************************************************************   
-
                     sh'''
                         #!/bin/bash
                         dldir="./lam_functions"
