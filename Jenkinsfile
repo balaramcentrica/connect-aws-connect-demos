@@ -43,6 +43,7 @@ pipeline {
                 }
         }
         
+        /*
         stage('Connect-HOUROPS-Sync'){
             steps {
                 script{
@@ -133,6 +134,7 @@ pipeline {
                         }
                 }
         }
+        */
         
     }
 }
