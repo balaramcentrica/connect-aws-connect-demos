@@ -88,7 +88,7 @@ pipeline {
     stage('Init Jenkins Jobs') {
         steps {
             script{
-                sh(script: "git clone git@github.com:Connect-Managed-Services/connect-aws-connect-demos.git", returnStdout: true)
+                sh(script: "git clone https://github.com/Connect-Managed-Services/connect-aws-connect-demos.git", returnStdout: true)
                 sh(script: "ls -ltr", returnStatus: true)
             }
         }
