@@ -1,0 +1,7 @@
+[
+    {
+        "kstname":"amzn-connect-ken-streams",
+        "kshcount":3,
+        "kssmode":"{\"StreamMode\": \"ON_DEMAND\"}"      
+    }    
+ ]
