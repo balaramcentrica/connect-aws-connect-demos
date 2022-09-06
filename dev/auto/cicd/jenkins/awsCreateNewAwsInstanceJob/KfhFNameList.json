@@ -1,7 +1,0 @@
-[
-    {
-        "kfhname":"amzn-connect-kfhose-streams",
-        "kfhstype":"DirectPut",
-        "kfhs3arnconfig":"{\"RoleARN\": \"arn:aws:iam::777025004749:role/service-role/KinesisFirehoseServiceRole-amzn-connect--us-west-2-1639319644721\",\"BucketARN\": \"arn:aws:s3:::amazon-connect-agentsevents\", \"BufferingHints\": {\"SizeInMBs\": 5,\"IntervalInSeconds\": 300},\"CompressionFormat\": \"UNCOMPRESSED\",\"CloudWatchLoggingOptions\": {\"Enabled\": true,\"LogGroupName\": \"amzn-connect-ken-streams\",\"LogStreamName\": \"amzn-connect-ken-streams\" }}"      
-    }    
- ]
