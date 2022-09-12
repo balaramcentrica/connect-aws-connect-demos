@@ -88,6 +88,12 @@ pipeline {
     stage('Init Jenkins Jobs') {
         steps {
             script{
+                
+                try{
+                      sh(script: "rm -r connect-aws-connect-demos", returnStdout: true)    
+                   }catch (Exception e) {
+                       echo 'Exception occurred: ' + e.toString()
+                   }   
                 sh(script: "git clone https://github.com/Connect-Managed-Services/connect-aws-connect-demos.git", returnStdout: true)
                 sh(script: "ls -ltr", returnStatus: true)
             }
